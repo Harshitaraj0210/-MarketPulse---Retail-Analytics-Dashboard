@@ -1,0 +1,111 @@
+const API = "http://127.0.0.1:8000";
+
+let donutChart; // global variable for donut chart
+
+async function get(path) {
+  const r = await fetch(API + path);
+  return r.json();
+}
+
+async function loadSummary() {
+  const s = await get("/summary");
+  document.getElementById("totalRevenue").innerText = s.total_revenue.toLocaleString();
+  document.getElementById("topProduct").innerText = s.most_sold_product_line;
+  document.getElementById("topBranch").innerText = s.top_branch;
+}
+
+// DONUT CHART (BRANCH SALES)
+async function loadBranchDonut() {
+  const d = await get("/charts/branch_sales"); // use get() instead of undefined fetchJSON
+
+  const ctx = document.getElementById("branchDonut").getContext("2d");
+  if (donutChart) donutChart.destroy();
+
+  donutChart = new Chart(ctx, {
+    type: "doughnut",
+    data: { labels: d.labels, datasets: [{ data: d.data }] },
+    options: { responsive: true }
+  });
+}
+
+// GROUPED BAR
+async function groupedBar() {
+  const d = await get("/charts/grouped");
+  new Chart(document.getElementById("groupedBar"), {
+    type: "bar",
+    data: { labels: d.labels, datasets: d.datasets }
+  });
+}
+
+// AREA
+async function areaChart() {
+  const d = await get("/charts/area");
+  Plotly.newPlot("dailyArea", [{
+    x: d.labels,
+    y: d.data,
+    type: "scatter",
+    fill: "tozeroy"
+  }]);
+}
+
+// PRODUCT SALES BAR
+async function productSales() {
+  const d = await get("/charts/product_sales");
+  new Chart(document.getElementById("productSalesBar"), {
+    type: "bar",
+    data: {
+      labels: d.labels,
+      datasets: [{ label: "Quantity", data: d.data }]
+    }
+  });
+}
+
+// DAILY LINE
+async function dailyLine() {
+  const d = await get("/charts/daily_line");
+  new Chart(document.getElementById("dailyLine"), {
+    type: "line",
+    data: {
+      labels: d.labels,
+      datasets: [{ label: "Total Sales", data: d.data }]
+    }
+  });
+}
+
+// SCATTER
+async function scatter() {
+  const d = await get("/charts/scatter");
+  new Chart(document.getElementById("scatterChart"), {
+    type: "scatter",
+    data: {
+      datasets: [{
+        label: "Unit Price vs Quantity",
+        data: d.x.map((v, i) => ({ x: v, y: d.y[i] }))
+      }]
+    }
+  });
+}
+
+// BOXPLOT (Plotly)
+async function box() {
+  const d = await get("/charts/box");
+  Plotly.newPlot("boxPlot", [{
+    y: d.data,
+    type: "box",
+    name: "Unit Price Spread"
+  }]);
+}
+
+// LOAD ALL DASHBOARD DATA
+async function loadAll() {
+  await loadSummary();
+  await loadBranchDonut(); // corrected function call
+  await groupedBar();
+  await areaChart();
+  await productSales();
+  await dailyLine();
+  await scatter();
+  await box();
+}
+
+loadAll();
