@@ -1,0 +1,103 @@
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+import pandas as pd
+
+app = FastAPI(title="Market Pulse - Retail Analytics Dashboard")
+
+# ---------------------------- CORS ---------------------------
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ---------------------------- STATIC FRONTEND ---------------------------
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return open("static/index.html").read()
+
+# ---------------------------- LOAD DATA ---------------------------
+URL = 'https://drive.google.com/file/d/10lPAnqygCoM_Z_6f9P79N6X8yJqBVpao/view?usp=sharing'
+path = 'https://drive.google.com/uc?export=download&id=' + URL.split('/')[-2]
+
+df = pd.read_csv(path)
+df["Date"] = pd.to_datetime(df["Date"], errors="coerce")
+
+# ---------------------------- APIs ---------------------------
+
+@app.get("/summary")
+def summary():
+    return {
+        "total_revenue": float(df["Total"].sum()),
+        "most_sold_product_line": df.groupby("Product line")["Quantity"].sum().idxmax(),
+        "top_branch": df.groupby("Branch")["Total"].sum().idxmax()
+    }
+@app.get("/charts/branch_sales")
+def branch_sales():
+    branch_totals = df.groupby("Branch")["Total"].sum()
+
+    return {
+        "labels": branch_totals.index.tolist(),
+        "data": branch_totals.tolist()
+    }
+@app.get("/charts/grouped")
+def grouped_bar():
+    grouped = df.groupby(["Date", "Product line"])["Quantity"].sum().unstack(fill_value=0)
+    return {
+        "labels": grouped.index.astype(str).tolist(),
+        "datasets": [
+            {"label": col, "data": grouped[col].tolist()}
+            for col in grouped.columns
+        ]
+    }
+
+@app.get("/charts/area")
+def area_chart():
+    daily = df.groupby("Date")["Total"].sum()
+    return {
+        "labels": daily.index.astype(str).tolist(),
+        "data": daily.tolist()
+    }
+
+# NEW API — product sales bar chart
+@app.get("/charts/product_sales")
+def product_sales():
+    ps = df.groupby("Product line")["Quantity"].sum()
+    return {
+        "labels": ps.index.tolist(),
+        "data": ps.values.tolist()
+    }
+
+# NEW API — daily line chart (sales over time)
+@app.get("/charts/daily_line")
+def daily_line():
+    dl = df.groupby("Date")["Total"].sum()
+    return {
+        "labels": dl.index.astype(str).tolist(),
+        "data": dl.values.tolist()
+    }
+
+# NEW API — scatter price vs quantity
+@app.get("/charts/scatter")
+def scatter_chart():
+    return {
+        "x": df["Unit price"].tolist(),
+        "y": df["Quantity"].tolist()
+    }
+
+# NEW API — box plot price distribution
+@app.get("/charts/box")
+def box_chart():
+    return {
+        "data": df["Unit price"].tolist()
+    }
+
+@app.get("/health")
+def health():
+    return {"message": "Backend Running Successfully"}
